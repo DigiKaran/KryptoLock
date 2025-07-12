@@ -1,12 +1,35 @@
 class PasswordManager {
     constructor() {
         this.masterPassword = null;
+        this.userToken = null;
+        this.userData = null;
         this.init();
     }
 
     async init() {
+        // Check if user is authenticated with database
+        await this.checkUserAuthentication();
         await this.checkMasterPasswordSetup();
         this.bindEvents();
+    }
+
+    async checkUserAuthentication() {
+        const result = await chrome.storage.local.get(['kryptolock_user_token', 'kryptolock_user_data']);
+        
+        if (!result.kryptolock_user_token || !result.kryptolock_user_data) {
+            // User not authenticated, redirect to login
+            window.location.href = 'login-popup.html';
+            return;
+        }
+        
+        this.userToken = result.kryptolock_user_token;
+        this.userData = result.kryptolock_user_data;
+        
+        // Display user info
+        const userInfo = document.getElementById('userInfo');
+        if (userInfo) {
+            userInfo.textContent = `Logged in as: ${this.userData.username}`;
+        }
     }
 
     async checkMasterPasswordSetup() {
@@ -173,129 +196,142 @@ class PasswordManager {
         }
 
         try {
-            const encryptedData = await CryptoUtils.encrypt(
-                JSON.stringify({ username, password }),
-                this.masterPassword
-            );
+            // Encrypt the password with master password
+            const encryptedPassword = await CryptoUtils.encrypt(password, this.masterPassword);
 
-            const result = await chrome.storage.local.get(['passwords']);
-            const passwords = result.passwords || [];
-            
-            // Check if password already exists for this site
-            const existingIndex = passwords.findIndex(p => p.siteUrl === siteUrl);
-            
-            const passwordEntry = {
-                id: Date.now().toString(),
-                siteName,
-                siteUrl,
-                encryptedData,
-                createdAt: new Date().toISOString()
-            };
+            // Save to database
+            const response = await fetch('http://localhost:3000/api/credentials', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.userToken}`
+                },
+                body: JSON.stringify({
+                    website_name: siteName,
+                    website_url: siteUrl,
+                    username: username,
+                    encrypted_password: encryptedPassword,
+                    notes: 'Saved from KryptoLock extension'
+                })
+            });
 
-            if (existingIndex !== -1) {
-                passwords[existingIndex] = passwordEntry;
-                this.showMessage('Password updated successfully!', 'success');
+            const data = await response.json();
+
+            if (data.message) {
+                this.showMessage('Password saved successfully!', 'success');
+                
+                // Clear form
+                document.getElementById('siteName').value = '';
+                document.getElementById('siteUrl').value = '';
+                document.getElementById('username').value = '';
+                document.getElementById('password').value = '';
+                
+                // Reload passwords
+                await this.loadPasswords();
+                this.autoFillCurrentSite();
             } else {
-                passwords.push(passwordEntry);
-                this.showMessage('Password added successfully!', 'success');
+                this.showMessage(data.error || 'Error saving password', 'error');
             }
-
-            await chrome.storage.local.set({ passwords });
-            
-            // Clear form
-            document.getElementById('siteName').value = '';
-            document.getElementById('siteUrl').value = '';
-            document.getElementById('username').value = '';
-            document.getElementById('password').value = '';
-            
-            await this.loadPasswords();
-            this.autoFillCurrentSite();
         } catch (error) {
-            this.showMessage('Error adding password', 'error');
+            console.error('Error adding password:', error);
+            this.showMessage('Network error. Please check your connection.', 'error');
         }
     }
 
     async loadPasswords() {
-        const result = await chrome.storage.local.get(['passwords']);
-        const passwords = result.passwords || [];
-        
-        const passwordList = document.getElementById('passwordList');
-        const emptyState = document.getElementById('emptyState');
+        try {
+            // Load passwords from database
+            const response = await fetch(`http://localhost:3000/api/credentials/user/${this.userData.id}`, {
+                headers: {
+                    'Authorization': `Bearer ${this.userToken}`
+                }
+            });
 
-        if (passwords.length === 0) {
+            const credentials = await response.json();
+            
+            const passwordList = document.getElementById('passwordList');
+            const emptyState = document.getElementById('emptyState');
+
+            if (credentials.length === 0) {
+                passwordList.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
             passwordList.innerHTML = '';
-            emptyState.style.display = 'block';
-            return;
-        }
 
-        emptyState.style.display = 'none';
-        passwordList.innerHTML = '';
-
-        for (const passwordEntry of passwords) {
-            const div = document.createElement('div');
-            div.className = 'password-item';
-            
-            div.innerHTML = `
-                <div class="password-info">
-                    <div class="password-site">${passwordEntry.siteName}</div>
-                    <div class="password-username">${passwordEntry.siteUrl}</div>
-                </div>
-                <div class="password-actions">
-                    <button class="btn btn-small btn-secondary" onclick="passwordManager.fillPassword('${passwordEntry.id}')">Fill</button>
-                    <button class="btn btn-small btn-secondary" onclick="passwordManager.copyPassword('${passwordEntry.id}')">Copy</button>
-                    <button class="btn btn-small btn-danger" onclick="passwordManager.deletePassword('${passwordEntry.id}')">Delete</button>
-                </div>
-            `;
-            
-            passwordList.appendChild(div);
+            for (const credential of credentials) {
+                try {
+                    // Decrypt the password
+                    const decryptedPassword = await CryptoUtils.decrypt(credential.encrypted_password, this.masterPassword);
+                    
+                    const div = document.createElement('div');
+                    div.className = 'password-item';
+                    
+                    div.innerHTML = `
+                        <div class="password-info">
+                            <div class="password-site">${credential.website_name}</div>
+                            <div class="password-username">${credential.username}</div>
+                        </div>
+                        <div class="password-actions">
+                            <button class="btn btn-small btn-secondary" onclick="passwordManager.fillPassword('${credential.id}', '${credential.username}', '${decryptedPassword}')">Fill</button>
+                            <button class="btn btn-small btn-secondary" onclick="passwordManager.copyPassword('${credential.id}', '${decryptedPassword}')">Copy</button>
+                            <button class="btn btn-small btn-danger" onclick="passwordManager.deletePassword('${credential.id}')">Delete</button>
+                        </div>
+                    `;
+                    
+                    passwordList.appendChild(div);
+                } catch (error) {
+                    console.error('Error decrypting password:', error);
+                    // Show encrypted entry if decryption fails
+                    const div = document.createElement('div');
+                    div.className = 'password-item';
+                    div.innerHTML = `
+                        <div class="password-info">
+                            <div class="password-site">${credential.website_name} (Encrypted)</div>
+                            <div class="password-username">${credential.username}</div>
+                        </div>
+                        <div class="password-actions">
+                            <button class="btn btn-small btn-danger" onclick="passwordManager.deletePassword('${credential.id}')">Delete</button>
+                        </div>
+                    `;
+                    passwordList.appendChild(div);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading passwords:', error);
+            this.showMessage('Network error. Please check your connection.', 'error');
         }
     }
 
-    async copyPassword(passwordId) {
+    async copyPassword(passwordId, decryptedPassword) {
         try {
-            const result = await chrome.storage.local.get(['passwords']);
-            const passwords = result.passwords || [];
-            const passwordEntry = passwords.find(p => p.id === passwordId);
-            
-            if (passwordEntry) {
-                const decryptedData = await CryptoUtils.decrypt(passwordEntry.encryptedData, this.masterPassword);
-                const { password } = JSON.parse(decryptedData);
-                
-                await navigator.clipboard.writeText(password);
-                this.showMessage('Password copied to clipboard!', 'success');
-            }
+            await navigator.clipboard.writeText(decryptedPassword);
+            this.showMessage('Password copied to clipboard!', 'success');
         } catch (error) {
             this.showMessage('Error copying password', 'error');
         }
     }
 
-    async fillPassword(passwordId) {
+    async fillPassword(passwordId, username, password) {
         try {
-            const result = await chrome.storage.local.get(['passwords']);
-            const passwords = result.passwords || [];
-            const passwordEntry = passwords.find(p => p.id === passwordId);
+            // Get current active tab
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             
-            if (passwordEntry) {
-                const decryptedData = await CryptoUtils.decrypt(passwordEntry.encryptedData, this.masterPassword);
-                const { username, password } = JSON.parse(decryptedData);
-                
-                // Get current active tab
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                
-                if (tab) {
-                    // Send message to content script to fill the credentials
-                    chrome.tabs.sendMessage(tab.id, {
-                        action: 'fillCredentials',
-                        username: username,
-                        password: password
-                    }, (response) => {
-                        if (response && response.success) {
-                            this.showMessage('Credentials filled!', 'success');
-                        } else {
-                            this.showMessage('Could not fill credentials', 'error');
-                        }
-                    });
-                }
+            if (tab) {
+                // Send message to content script to fill the credentials
+                chrome.tabs.sendMessage(tab.id, {
+                    action: 'fillCredentials',
+                    username: username,
+                    password: password
+                }, (response) => {
+                    if (response && response.success) {
+                        this.showMessage('Credentials filled!', 'success');
+                    } else {
+                        this.showMessage('Could not fill credentials', 'error');
+                    }
+                });
             }
         } catch (error) {
             this.showMessage('Error filling password', 'error');
@@ -308,15 +344,25 @@ class PasswordManager {
         }
 
         try {
-            const result = await chrome.storage.local.get(['passwords']);
-            const passwords = result.passwords || [];
-            const filteredPasswords = passwords.filter(p => p.id !== passwordId);
-            
-            await chrome.storage.local.set({ passwords: filteredPasswords });
-            this.showMessage('Password deleted successfully!', 'success');
-            await this.loadPasswords();
+            // Delete from database
+            const response = await fetch(`http://localhost:3000/api/credentials/${passwordId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${this.userToken}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.message) {
+                this.showMessage('Password deleted successfully!', 'success');
+                await this.loadPasswords();
+            } else {
+                this.showMessage(data.error || 'Error deleting password', 'error');
+            }
         } catch (error) {
-            this.showMessage('Error deleting password', 'error');
+            console.error('Error deleting password:', error);
+            this.showMessage('Network error. Please check your connection.', 'error');
         }
     }
 
@@ -335,9 +381,20 @@ class PasswordManager {
     }
 
     async logout() {
-        await chrome.storage.local.set({ isLoggedIn: false });
+        // Clear all authentication data
+        await chrome.storage.local.remove([
+            'isLoggedIn', 
+            'masterPasswordHash', 
+            'kryptolock_user_token', 
+            'kryptolock_user_data'
+        ]);
+        
         this.masterPassword = null;
-        this.showMasterPasswordLogin();
+        this.userToken = null;
+        this.userData = null;
+        
+        // Redirect to login page
+        window.location.href = 'login-popup.html';
     }
 
     showMessage(message, type) {

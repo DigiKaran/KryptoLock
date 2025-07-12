@@ -19,12 +19,13 @@
       {
         "matches": ["http://*/*", "https://*/*"],
         "js": ["content.js"],
-        "run_at": "document_end"
+        "run_at": "document_end",
+        "all_frames": false
       }
     ],
     "action": {
-      "default_popup": "popup.html",
-      "default_title": "SecurePass Manager",
+      "default_popup": "login-popup.html",
+      "default_title": "KryptoLock - Secure Password Manager",
       "default_icon": {
         "48": "icons/icon48.png",
         "128": "icons/icon128.png"
@@ -39,5 +40,8 @@
         "resources": ["crypto-utlis.js"],
         "matches": ["http://*/*", "https://*/*"]
       }
-    ]
+    ],
+    "content_security_policy": {
+      "extension_pages": "script-src 'self'; object-src 'self'"
+    }
   }

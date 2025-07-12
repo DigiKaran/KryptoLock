@@ -4,20 +4,24 @@ class AutoFillManager {
     }
 
     async init() {
-        // Wait for page to load
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.checkForLoginForms());
-        } else {
-            this.checkForLoginForms();
-        }
-
-        // Listen for messages from popup
-        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-            if (request.action === 'fillCredentials') {
-                this.fillCredentials(request.username, request.password);
-                sendResponse({ success: true });
+        try {
+            // Wait for page to load
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => this.checkForLoginForms());
+            } else {
+                this.checkForLoginForms();
             }
-        });
+
+            // Listen for messages from popup
+            chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+                if (request.action === 'fillCredentials') {
+                    this.fillCredentials(request.username, request.password);
+                    sendResponse({ success: true });
+                }
+            });
+        } catch (error) {
+            console.log('KryptoLock: Error in init:', error);
+        }
     }
 
     async checkForLoginForms() {
@@ -237,4 +241,8 @@ class AutoFillManager {
 }
 
 // Initialize the autofill manager
-new AutoFillManager();
+try {
+    new AutoFillManager();
+} catch (error) {
+    console.log('KryptoLock: Error initializing autofill manager:', error);
+}
