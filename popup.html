@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>KryptoLock</title>
+    <style>
+        body {
+            width: 350px;
+            min-height: 400px;
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            color: #4a5568;
+        }
+
+        .master-password-setup, .master-password-login {
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        input[type="text"], input[type="password"], input[type="url"] {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus, input[type="password"]:focus, input[type="url"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-danger {
+            background: #f56565;
+        }
+
+        .btn-small {
+            width: auto;
+            padding: 6px 12px;
+            font-size: 12px;
+            margin-left: 5px;
+        }
+
+        .main-interface {
+            display: none;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            color: #718096;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .password-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .password-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .password-info {
+            flex: 1;
+        }
+
+        .password-site {
+            font-weight: 500;
+            color: #2d3748;
+        }
+
+        .password-username {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .password-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .message {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .message.success {
+            background: #c6f6d5;
+            color: #276749;
+        }
+
+        .message.error {
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .logout-btn {
+            margin-top: 15px;
+            background: #718096;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #718096;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #4a5568;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="icon.png" alt="Lock Icon" style="width:32px;margin-bottom:8px;">
+            <h1>KryptoLock</h1>
+        </div>
+
+        <!-- Master Password Setup -->
+        <div id="masterPasswordSetup" class="master-password-setup">
+            <h2>Set Master Password</h2>
+            <p>Create a master password to encrypt your saved passwords.</p>
+            <div class="form-group">
+                <label for="setupMasterPassword">Master Password</label>
+                <input type="password" id="setupMasterPassword" placeholder="Enter master password">
+            </div>
+            <div class="form-group">
+                <label for="confirmMasterPassword">Confirm Password</label>
+                <input type="password" id="confirmMasterPassword" placeholder="Confirm master password">
+            </div>
+            <button class="btn" id="setMasterPasswordBtn">Set Master Password</button>
+        </div>
+
+        <!-- Master Password Login -->
+        <div id="masterPasswordLogin" class="master-password-login" style="display: none;">
+            <h2>Enter Master Password</h2>
+            <p>Enter your master password to access your saved passwords.</p>
+            <div class="form-group">
+                <label for="loginMasterPassword">Master Password</label>
+                <input type="password" id="loginMasterPassword" placeholder="Enter master password">
+            </div>
+            <button class="btn" id="loginMasterPasswordBtn">Unlock</button>
+        </div>
+
+        <!-- Main Interface -->
+        <div id="mainInterface" class="main-interface">
+            <div class="tabs">
+                <button class="tab active" data-tab="add">Add Password</button>
+                <button class="tab" data-tab="view">View Passwords</button>
+            </div>
+
+            <!-- Add Password Tab -->
+            <div id="addTab" class="tab-content active">
+                <div class="form-group">
+                    <label for="siteName">Website Name</label>
+                    <input type="text" id="siteName" placeholder="e.g., Gmail">
+                </div>
+                <div class="form-group">
+                    <label for="siteUrl">Website URL</label>
+                    <input type="url" id="siteUrl" placeholder="https://www.example.com">
+                </div>
+                <div class="form-group">
+                    <label for="username">Username/Email</label>
+                    <input type="text" id="username" placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter password">
+                </div>
+                <button class="btn" id="addPasswordBtn">Add Password</button>
+            </div>
+
+            <!-- View Passwords Tab -->
+            <div id="viewTab" class="tab-content">
+                <div id="passwordList" class="password-list"></div>
+                <div id="emptyState" class="empty-state">
+                    <h3>No passwords saved yet</h3>
+                    <p>Add your first password using the "Add Password" tab.</p>
+                </div>
+            </div>
+
+            <button class="btn logout-btn" id="logoutBtn">Logout</button>
+        </div>
+
+        <!-- Messages -->
+        <div id="messageContainer"></div>
+    </div>
+
+    <script src="crypto-utlis.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html>
