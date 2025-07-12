@@ -5,12 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const fs = require('fs');
-if (fs.existsSync('config.env')) {
-  require('dotenv').config({ path: 'config.env' });
-} else {
-  require('dotenv').config();
-}
+require('dotenv').config();
 const CryptoJS = require('crypto-js');
 const crypto = require('crypto');
 

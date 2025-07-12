@@ -19,8 +19,38 @@ class AutoFillManager {
                     sendResponse({ success: true });
                 }
             });
+
+            // Listen for form submissions to auto-catch credentials
+            document.addEventListener('submit', (e) => this.handleFormSubmit(e), true);
         } catch (error) {
             console.log('KryptoLock: Error in init:', error);
+        }
+    }
+
+    async handleFormSubmit(e) {
+        const form = e.target;
+        const passwordField = form.querySelector('input[type="password"]');
+        if (!passwordField) return;
+        const usernameField = form.querySelector('input[type="text"], input[type="email"]');
+        if (!usernameField) return;
+        const username = usernameField.value;
+        const password = passwordField.value;
+        if (!username || !password) return;
+        // Prompt to save credentials
+        if (confirm(`Save credentials for ${window.location.hostname}?`)) {
+            // Save to chrome.storage.local (append to passwords array)
+            chrome.storage.local.get(['passwords'], (result) => {
+                const passwords = result.passwords || [];
+                passwords.push({
+                    id: Date.now(),
+                    siteUrl: window.location.href,
+                    username,
+                    password
+                });
+                chrome.storage.local.set({ passwords }, () => {
+                    alert('Credentials saved!');
+                });
+            });
         }
     }
 
@@ -29,6 +59,9 @@ class AutoFillManager {
         
         if (loginForms.length > 0) {
             await this.tryAutoFill(loginForms[0]);
+        } else {
+            // Feedback if no login form found
+            // console.log('KryptoLock: No login form detected on this page.');
         }
     }
 

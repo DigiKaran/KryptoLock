@@ -265,22 +265,19 @@ class PasswordManager {
                 try {
                     // Decrypt the password
                     const decryptedPassword = await CryptoUtils.decrypt(credential.encrypted_password, this.masterPassword);
-                    
                     const div = document.createElement('div');
                     div.className = 'password-item';
-                    
                     div.innerHTML = `
                         <div class="password-info">
                             <div class="password-site">${credential.website_name}</div>
                             <div class="password-username">${credential.username}</div>
                         </div>
                         <div class="password-actions">
-                            <button class="btn btn-small btn-secondary" onclick="passwordManager.fillPassword('${credential.id}', '${credential.username}', '${decryptedPassword}')">Fill</button>
-                            <button class="btn btn-small btn-secondary" onclick="passwordManager.copyPassword('${credential.id}', '${decryptedPassword}')">Copy</button>
-                            <button class="btn btn-small btn-danger" onclick="passwordManager.deletePassword('${credential.id}')">Delete</button>
+                            <button class="btn btn-small btn-secondary fill-btn" data-username="${credential.username}" data-password="${decryptedPassword}">Fill</button>
+                            <button class="btn btn-small btn-secondary copy-btn" data-password="${decryptedPassword}">Copy</button>
+                            <button class="btn btn-small btn-danger delete-btn" data-id="${credential.id}">Delete</button>
                         </div>
                     `;
-                    
                     passwordList.appendChild(div);
                 } catch (error) {
                     console.error('Error decrypting password:', error);
@@ -299,6 +296,20 @@ class PasswordManager {
                     passwordList.appendChild(div);
                 }
             }
+
+            // Add event delegation for Fill, Copy, Delete
+            passwordList.onclick = (e) => {
+                const fillBtn = e.target.closest('.fill-btn');
+                const copyBtn = e.target.closest('.copy-btn');
+                const deleteBtn = e.target.closest('.delete-btn');
+                if (fillBtn) {
+                    this.handleFillButton(fillBtn);
+                } else if (copyBtn) {
+                    this.copyPassword(null, copyBtn.dataset.password);
+                } else if (deleteBtn) {
+                    this.deletePassword(deleteBtn.dataset.id);
+                }
+            };
         } catch (error) {
             console.error('Error loading passwords:', error);
             this.showMessage('Network error. Please check your connection.', 'error');
@@ -314,13 +325,12 @@ class PasswordManager {
         }
     }
 
-    async fillPassword(passwordId, username, password) {
+    async handleFillButton(btn) {
+        const username = btn.dataset.username;
+        const password = btn.dataset.password;
         try {
-            // Get current active tab
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            
             if (tab) {
-                // Send message to content script to fill the credentials
                 chrome.tabs.sendMessage(tab.id, {
                     action: 'fillCredentials',
                     username: username,
